@@ -29,16 +29,7 @@ exports.handler = function(event, context, callback) {
         callback("Image already resized");
         return;
     }
-    var typeMatch = curKey.match(/\.([^.]*)$/);
-    if (!typeMatch) {
-        callback("Could not determine the image type.");
-        return;
-    }
-    var imageType = typeMatch[1];
-    if (imageType != "jpg" && imageType != "png") {
-        callback('Unsupported image type: ${imageType}');
-        return;
-    }
+    console.log("This assumes what you give it is an image file, as we strip file endings in uploads.")
 
     // Where to store the original file
     var origKey    = origPrepend + curKey;
@@ -85,7 +76,7 @@ exports.handler = function(event, context, callback) {
 
                 // Transform the image buffer in memory.
                 this.resize(width, height)
-                    .toBuffer(imageType, function(err, buffer) {
+                    .toBuffer("jpg", function(err, buffer) {
                         if (err) {
                             next(err);
                         } else {

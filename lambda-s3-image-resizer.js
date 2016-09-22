@@ -14,6 +14,7 @@ var s3 = new AWS.S3();
 
 exports.handler = function(event, context, callback) {
     var origPrepend = 'orig-';
+
     // Read options from the event.
     console.log("Reading options from event:\n",
         util.inspect(event, {depth: 5}));
@@ -40,12 +41,14 @@ exports.handler = function(event, context, callback) {
     }
 
     // Where to store the original file
-    var origKey    = origPrepend + curKey
-
+    var origKey    = origPrepend + curKey;
+    console.log('Downloading file ' + curKey + ' and copying to ' + origKey + '.');
+    console.log('');
     // Download the image from S3, transform, and upload to a different S3 bucket.
     async.waterfall(
       [
         function check_existing(next) {
+          console.log('Checking existing')
           // Check file metadata for the "resized" mark.
           s3.headObject({
                   Bucket: bucket,
@@ -60,15 +63,16 @@ exports.handler = function(event, context, callback) {
         },
         function download(next) {
             // Download the image from S3 into a buffer.
+            console.log('Finished cheking if image already resized.')
             console.log('Donwloading image');
             s3.getObject({
                     Bucket: bucket,
                     Key: curKey
                 },
                 next);
-            console.log('Finished donwloading image');
         },
         function transform(response, next) {
+            console.log('Finished donwloading image');
             console.log('Resizing image');
             gm(response.Body).size(function(err, size) {
                 // Infer the scaling factor to avoid stretching the image unnaturally.
@@ -89,9 +93,9 @@ exports.handler = function(event, context, callback) {
                         }
                     });
               });
-              console.log('Finished resizing image');
         },
         function copyBackup(contentType, data, next) {
+            console.log('Finished resizing image');
             console.log('Copying backup');
             // Copy the original object into the rezied name
             s3.copyObject({

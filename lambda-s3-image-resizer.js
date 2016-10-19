@@ -54,16 +54,25 @@ exports.handler = function(event, context, callback) {
         },
         function download(next) {
             // Download the image from S3 into a buffer.
-            console.log('Finished cheking if image already resized.')
-            console.log('Donwloading image');
+            console.log('Finished checking if image already resized.')
+            console.log('Downloading image');
             s3.getObject({
                     Bucket: bucket,
                     Key: curKey
                 },
                 next);
         },
+        function checkFormat(response,next) {
+          console.log('Finished donwloading image');
+          console.log('Checking image format');
+          if (gm(response.Body).format === 'jpeg') {
+            next(null, response);
+          } else {
+            next('File has an inappropriate format');
+          }
+        },
         function transform(response, next) {
-            console.log('Finished donwloading image');
+            console.log('Finished checking image format');
             console.log('Resizing image');
             gm(response.Body).size(function(err, size) {
                 // Infer the scaling factor to avoid stretching the image unnaturally.

@@ -1,0 +1,23 @@
+{
+  "name": "lambda-s3-image-resizer",
+  "version": "0.0.1",
+  "description": "The idea is to have the example from amazon lambda docs but using only one bucket.",
+  "main": "lambda-s3-image-resizer.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ridee/lambda-s3-image-resizer.git"
+  },
+  "author": "Jinn",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Ridee/lambda-s3-image-resizer/issues"
+  },
+  "homepage": "https://github.com/Ridee/lambda-s3-image-resizer#readme",
+  "dependencies": {
+    "async": "^2.1.2",
+    "gm": "^1.23.0"
+  }
+}

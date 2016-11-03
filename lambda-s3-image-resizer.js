@@ -63,14 +63,14 @@ exports.handler = function (event, context, callback) {
       function checkFormat(response, next) {
         console.log('Finished donwloading image');
         console.log('Checking image format');
-        var formatStr = "Image format is";
-        formatStr = formatStr.concat(gm(response.Body).format);
-        console.log(formatStr);
-        if (gm(response.Body).format === 'jpeg') {
-          next(null, response);
-        } else {
-          next('File has an inappropriate format');
-        }
+        gm(response.Body).format(function(err, value){
+          console.log(value);
+          if(value !== undefined && value == 'jpeg'){
+            next(null, response);
+          } else {
+            next('File has an inappropriate format');
+          }
+        });
       },
       function transform(response, next) {
         console.log('Finished checking image format');

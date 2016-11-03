@@ -65,7 +65,7 @@ exports.handler = function (event, context, callback) {
         console.log('Checking image format');
         gm(response.Body).format(function(err, value){
           console.log(value);
-          if(value !== undefined && value == 'jpeg'){
+          if(value !== undefined && value == 'JPEG'){
             next(null, response);
           } else {
             next('File has an inappropriate format');

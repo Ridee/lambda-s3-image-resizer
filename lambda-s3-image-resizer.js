@@ -63,8 +63,9 @@ exports.handler = function (event, context, callback) {
       function checkFormat(response, next) {
         console.log('Finished donwloading image');
         console.log('Checking image format');
-	format = gm(response.Body).format;
-	console.log('Image format is ' + format);
+	      formatStr = "Image format is";
+        formatStr = format.concat(gm(response.Body).format);
+	      console.log(formatStr);
         if (gm(response.Body).format === 'jpeg') {
           next(null, response);
         } else {

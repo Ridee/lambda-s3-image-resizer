@@ -2,7 +2,9 @@
 from __future__ import absolute_import, print_function, unicode_literals
 
 import asyncio
+import concurrent.futures
 import json
+import time
 
 import boto3
 import pandas
@@ -20,13 +22,12 @@ async_lambda_client = AsyncioBotocore('lambda', region_name='eu-west-1')
 jinn_images_bucket = s3_client.Bucket('jinn-images')
 
 images = []
-# for image in jinn_images_bucket.objects.all():
-#    images.append({'key': image.key, 'date': image.last_modified, 'size': image.size})
-#
-# all_files = pandas.DataFrame(images)
-# all_files.to_pickle('all_files.pickle')
+# Easy switch
+if False:
+    for image in jinn_images_bucket.objects.all():
+        images.append({'key': image.key, 'date': image.last_modified, 'size': image.size})
 
-all_files = pandas.read_pickle('all_files.pickle')
+all_files = pandas.read_pickle('all_files-1479331018.954418.pickle')
 
 df = all_files[-all_files.key.str.contains('/')]
 orig_df = df[df.key.str.startswith('orig-')]
@@ -95,29 +96,20 @@ def get_object_event(key):
     return event
 
 
-async def invoke_lambda(event, num):
-    future = asyncio.ensure_future(async_lambda_client.invoke(
-        FunctionName='S3-Image-Resizer-jinn-images',
-        InvocationType='Event',
-        Payload=json.dumps(event)
-    ))
-    asyncio.wait(future)
-    print('Executed', num, '/', len(not_converted))
+pic_list = list(not_converted.key)[1000:]
 
 
-async def resize_all(not_converted):
-    call_list = []
-    for num, pic in enumerate(not_converted.key):
+def resize_all(start, ids):
+    lambda_client = boto3.client('lambda')
+    for num, pic in enumerate(ids, start=start):
         event = get_object_event(key=pic)
-        call = invoke_lambda(event, num)
-        future = asyncio.ensure_future(call)
-        call_list.append(future)
-        # lambda_client.invoke(
-        #     FunctionName='S3-Image-Resizer-jinn-images',
-        #     InvocationType='Event',
-        #     Payload=json.dumps(event)
-        # )
-    asyncio.wait(call_list)
+        lambda_client.invoke(
+            FunctionName='S3-Image-Resizer-jinn-images',
+            InvocationType='Event',
+            Payload=json.dumps(event)
+        )
+        print('Invoked', num, pic)
+    print('Run resize', start, '/', len(pic_list))
     return
 
 
@@ -125,6 +117,14 @@ def exception_handler(*args, **kwargs):
     print(args, kwargs)
 
 
-loop.set_exception_handler(exception_handler)
-loop.set_debug(True)
-loop.run_until_complete(resize_all(not_converted))
+def chunks(l, n):
+    """Yield successive n-sized chunks from l."""
+    for i in range(0, len(l), n):
+        yield l[i:i + n]
+
+
+with concurrent.futures.ProcessPoolExecutor(max_workers=10) as executor:
+    futures = {executor.submit(resize_all, start=num * 1000, ids=chunk) for num, chunk in
+               enumerate(chunks(pic_list, 1000))}
+    for future in concurrent.futures.as_completed(futures):
+        print('Done with future')

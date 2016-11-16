@@ -1,3 +1,5 @@
 node_modules/
 
 resizer.zip
+.ipynb_checkpoints/
+*.pickle

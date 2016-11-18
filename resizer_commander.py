@@ -15,19 +15,56 @@ asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 loop = uvloop.new_event_loop()
 asyncio.set_event_loop(loop)
 
-s3_client = boto3.resource('s3')
+s3_resource = boto3.resource('s3')
+s3_client = boto3.client('s3')
 lambda_client = boto3.client('lambda')
 async_lambda_client = AsyncioBotocore('lambda', region_name='eu-west-1')
 
-jinn_images_bucket = s3_client.Bucket('jinn-images')
+jinn_images_bucket = s3_resource.Bucket('jinn-images')
+
+
+def chunks(l, n):
+    """Yield successive n-sized chunks from l."""
+    for i in range(0, len(l), n):
+        yield l[i:i + n]
+
+
+def get_types_for_keys_in_chunks(keys):
+    s3_client = boto3.client('s3')
+    type_list = []
+    for key in keys:
+        response = s3_client.head_object(Bucket='jinn-images', Key=key)
+        type_list.append({'content_type': response['ContentType'], 'key': key})
+    return type_list
+
+
+def get_types_from_keys(keys):
+    types_list = []
+    with concurrent.futures.ProcessPoolExecutor(max_workers=40) as executor:
+        futures = {executor.submit(get_types_for_keys_in_chunks, key_chunk) for key_chunk in chunks(keys, 1000)}
+        for num, future in enumerate(concurrent.futures.as_completed(futures)):
+            print('Done getting types for', num, '/', len(futures))
+            body = future.result()
+            types_list.extend(body)
+    return pandas.DataFrame(types_list)
+
 
 images = []
 # Easy switch
-if False:
+if True:
     for image in jinn_images_bucket.objects.all():
+        image_type = s3_client.head_object(Bucket='jinn-images', Key=image.key)
         images.append({'key': image.key, 'date': image.last_modified, 'size': image.size})
+    all_files = pandas.DataFrame(images)
 
-all_files = pandas.read_pickle('all_files-1479331018.954418.pickle')
+    types_df = get_types_from_keys(all_files.key.values)
+
+    all_files = all_files.merge(types_df, on=['key'], how='outer')
+
+    all_files.to_pickle('all_files-{}.pickle'.format(time.time()))
+else:
+    all_files = pandas.read_pickle('all_files-1479331018.954418.pickle')
+exit()
 
 df = all_files[-all_files.key.str.contains('/')]
 orig_df = df[df.key.str.startswith('orig-')]
@@ -41,21 +78,32 @@ image_list = pandas.merge(
     suffixes=('_converted', '_original')
 )
 # Here we have a problem
+
+jpeg_list = image_list[
+    (image_list.content_type_converted == 'image/jpeg')
+    |
+    (image_list.content_type_original == 'image/jpeg')
+    ]
+
 print('Total:', len(df))
 print('Total, coalescing converted:', len(image_list))
-print('Converted:', len(image_list[(-image_list.size_converted.isnull()) & (-image_list.size_original.isnull())]))
-print('Size converted > original:',
-      len(image_list[image_list.size_converted > image_list.size_original]))
-print('Size converted == original:',
-      len(image_list[image_list.size_original == image_list.size_converted]))
-print('Size converted < original:',
-      len(image_list[image_list.size_converted <= image_list.size_original]))
-print('Only renamed:',
-      len(image_list[image_list.size_converted.isnull()]))
-print('Not converted:',
-      len(image_list[image_list.size_original.isnull()]))
-
-not_converted = image_list[image_list.size_original.isnull()]
+print('JPEG:', len(jpeg_list))
+print('Non JPEG:', len(image_list) - len(jpeg_list))
+print('Converted:', len(jpeg_list[(-jpeg_list.size_converted.isnull()) & (-jpeg_list.size_original.isnull())]))
+print('JPEG size converted > original:',
+      len(jpeg_list[jpeg_list.size_converted > jpeg_list.size_original])
+      )
+print('JPEG size converted == original:',
+      len(jpeg_list[jpeg_list.size_original == jpeg_list.size_converted])
+      )
+print('JPEG size converted < original:',
+      len(jpeg_list[jpeg_list.size_converted <= jpeg_list.size_original])
+      )
+print('JPEG only renamed:',
+      len(jpeg_list[jpeg_list.size_converted.isnull()])
+      )
+not_converted = jpeg_list[jpeg_list.size_original.isnull()]
+print('Not converted:', not_converted)
 
 
 def get_object_event(key):
@@ -115,12 +163,6 @@ def resize_all(start, ids):
 
 def exception_handler(*args, **kwargs):
     print(args, kwargs)
-
-
-def chunks(l, n):
-    """Yield successive n-sized chunks from l."""
-    for i in range(0, len(l), n):
-        yield l[i:i + n]
 
 
 with concurrent.futures.ProcessPoolExecutor(max_workers=10) as executor:
